@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎮 게임 타임 뱅크</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<!-- Firebase loaded via ESM module in script below -->
+<style>
+:root {
+  --sky:#38bdf8; --sky-dark:#0ea5e9; --sky-light:#e0f2fe;
+  --green:#4ade80; --green-dark:#16a34a; --green-light:#dcfce7;
+  --red:#f87171; --red-dark:#dc2626; --red-light:#fee2e2;
+  --yellow:#fbbf24; --yellow-light:#fef3c7;
+  --purple:#a78bfa; --purple-dark:#7c3aed;
+  --bg:#f0f9ff; --card:#fff; --text:#1e293b; --muted:#94a3b8;
+  --border:#e2e8f0; --shadow:0 4px 24px rgba(14,165,233,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito',sans-serif;background:var(--bg);min-height:100vh;color:var(--text)}
+
+/* ── LOADER ── */
+#loader{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:12px}
+.spin{width:40px;height:40px;border:4px solid var(--border);border-top-color:var(--sky-dark);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loader p{font-size:14px;font-weight:700;color:var(--muted)}
+
+/* ── LOGIN ── */
+#login-screen{min-height:100vh;display:none;align-items:center;justify-content:center;background:linear-gradient(135deg,#bae6fd 0%,#ddd6fe 100%);padding:20px}
+.login-box{background:#fff;border-radius:28px;padding:40px 32px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(14,165,233,.18);text-align:center}
+.login-emoji{font-size:56px;margin-bottom:8px}
+.login-title{font-size:26px;font-weight:900;margin-bottom:4px}
+.login-sub{font-size:14px;color:var(--muted);margin-bottom:28px}
+.field-wrap{text-align:left;margin-bottom:14px}
+.field-wrap label{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px}
+.field-wrap input{width:100%;padding:12px 16px;border:2px solid var(--border);border-radius:14px;font-family:inherit;font-size:15px;font-weight:700;outline:none;transition:border-color .2s}
+.field-wrap input:focus{border-color:var(--sky-dark)}
+.btn-login{width:100%;padding:14px;background:linear-gradient(135deg,var(--sky-dark),var(--purple-dark));color:#fff;border:none;border-radius:16px;font-family:inherit;font-size:17px;font-weight:900;cursor:pointer;margin-top:8px;transition:opacity .2s,transform .1s}
+.btn-login:hover{opacity:.92;transform:translateY(-1px)}
+.login-err{color:var(--red-dark);font-size:13px;font-weight:700;margin-top:10px;min-height:18px}
+
+/* ── TOPBAR ── */
+#app{display:none}
+.topbar{background:#fff;border-bottom:2px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-logo{font-size:20px;font-weight:900;color:var(--sky-dark)}
+.topbar-logo span{color:var(--purple-dark)}
+.user-badge{display:flex;align-items:center;gap:6px;background:var(--sky-light);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:800;color:var(--sky-dark)}
+.role-badge{font-size:10px;font-weight:900;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.05em}
+.role-parent{background:var(--purple-dark);color:#fff}
+.role-child{background:var(--green-dark);color:#fff}
+.btn-sm{padding:6px 14px;border-radius:10px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;border:none;transition:opacity .2s}
+.btn-logout{background:var(--red-light);color:var(--red-dark)}
+
+/* ── TABS ── */
+.tabs{display:flex;background:#fff;border-bottom:2px solid var(--border);padding:0 16px;overflow-x:auto}
+.tab-btn{padding:12px 18px;font-family:inherit;font-size:14px;font-weight:800;background:none;border:none;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent;transition:color .2s,border-color .2s;white-space:nowrap}
+.tab-btn.active{color:var(--sky-dark);border-bottom-color:var(--sky-dark)}
+
+/* ── PAGE ── */
+.page{display:none;padding:20px;max-width:600px;margin:0 auto}
+.page.active{display:block}
+
+/* ── BALANCE CARD ── */
+.balance-card{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);border-radius:24px;padding:28px 24px;text-align:center;color:#fff;margin-bottom:20px;position:relative;overflow:hidden;transition:background .4s}
+.balance-card::before{content:'🎮';position:absolute;font-size:100px;right:-10px;top:-10px;opacity:.08}
+.balance-label{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--sky);text-transform:uppercase;margin-bottom:6px;transition:color .3s}
+.balance-time{font-family:'JetBrains Mono',monospace;font-size:56px;font-weight:800;line-height:1;letter-spacing:-.02em;transition:color .3s}
+.balance-name{font-size:13px;color:#94a3b8;margin-top:6px}
+.balance-card.is-negative{background:linear-gradient(135deg,#450a0a 0%,#7f1d1d 100%)}
+.balance-card.is-negative .balance-label{color:#fca5a5}
+.balance-card.is-negative .balance-time{color:#fca5a5}
+.debt-warning{display:none;background:var(--red-light);border:2px solid var(--red-dark);border-radius:14px;padding:12px 16px;margin-bottom:16px;text-align:center;font-size:14px;font-weight:800;color:var(--red-dark)}
+.debt-warning.show{display:block}
+
+/* ── SECTION CARD ── */
+.section-card{background:#fff;border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:var(--shadow);border:2px solid var(--border)}
+.section-title{font-size:15px;font-weight:900;display:flex;align-items:center;gap:8px;margin-bottom:16px}
+
+/* ── COUNTDOWN ── */
+.cd-time-display{font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;text-align:center;color:var(--red-dark);margin:8px 0 16px;letter-spacing:-.02em}
+.cd-inputs{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:16px}
+.cd-input-num{width:68px;font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:800;text-align:center;border:2px solid var(--border);border-radius:12px;padding:8px 4px;outline:none;color:var(--red-dark);transition:border-color .2s}
+.cd-input-num:focus{border-color:var(--red-dark)}
+.cd-sep{font-size:24px;font-weight:900;color:var(--muted)}
+.cd-label{font-size:10px;font-weight:800;color:var(--muted);text-align:center}
+
+/* ── BUTTONS ── */
+.btn-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.btn-big{padding:13px 28px;border-radius:14px;font-family:inherit;font-size:15px;font-weight:900;cursor:pointer;border:none;transition:opacity .2s,transform .1s}
+.btn-big:hover{opacity:.88;transform:translateY(-1px)}
+.btn-big:active{transform:translateY(0)}
+.btn-red{background:var(--red-dark);color:#fff}
+.btn-yellow{background:var(--yellow);color:#78350f}
+.btn-ghost{background:var(--border);color:var(--text)}
+.btn-green{background:var(--green-dark);color:#fff}
+.btn-blue{background:var(--sky-dark);color:#fff}
+.btn-purple{background:var(--purple-dark);color:#fff}
+.hidden{display:none!important}
+
+/* ── FORM ── */
+.request-form{display:flex;flex-direction:column;gap:12px}
+.form-label{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.form-input{width:100%;padding:11px 14px;border:2px solid var(--border);border-radius:12px;font-family:inherit;font-size:14px;font-weight:700;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:var(--sky-dark)}
+.file-drop{border:2px dashed var(--border);border-radius:14px;padding:20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s}
+.file-drop:hover{border-color:var(--sky-dark);background:var(--sky-light)}
+.file-drop-text{font-size:13px;color:var(--muted);font-weight:700}
+.file-preview{max-width:100%;border-radius:10px;margin-top:8px;display:none}
+
+/* ── PENDING ── */
+.pending-item{border:2px solid var(--yellow);background:var(--yellow-light);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+.pending-item-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.pending-name{font-weight:900;font-size:15px}
+.pending-time{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--green-dark)}
+.pending-note{font-size:12px;color:var(--muted);margin-top:4px;font-weight:600}
+.pending-img{max-width:100%;border-radius:8px;margin-top:8px;cursor:pointer}
+.pending-actions{display:flex;gap:8px;margin-top:10px}
+.btn-approve{flex:1;padding:9px;border-radius:10px;background:var(--green-dark);color:#fff;font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;border:none}
+.btn-reject{flex:1;padding:9px;border-radius:10px;background:var(--red-light);color:var(--red-dark);font-family:inherit;font-size:13px;font-weight:900;cursor:pointer;border:none}
+
+/* ── HISTORY ── */
+.history-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.history-item:last-child{border-bottom:none}
+.history-action{font-weight:800;color:var(--text)}
+.history-meta{font-size:11px;color:var(--muted);font-weight:600}
+.history-change-plus{font-family:'JetBrains Mono',monospace;font-weight:800;color:var(--green-dark)}
+.history-change-minus{font-family:'JetBrains Mono',monospace;font-weight:800;color:var(--red-dark)}
+
+/* ── CHILD MANAGEMENT LIST ── */
+.child-mgmt-item{background:var(--sky-light);border:2px solid #bae6fd;border-radius:16px;padding:14px 16px;margin-bottom:10px}
+.child-mgmt-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.child-mgmt-name{font-weight:900;font-size:16px}
+.child-mgmt-id{font-size:11px;color:var(--muted);font-weight:600}
+.child-mgmt-time{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800}
+.child-mgmt-actions{display:flex;gap:6px;flex-wrap:wrap}
+.btn-action{padding:6px 14px;border-radius:10px;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;border:none}
+.btn-time{background:var(--sky-dark);color:#fff}
+.btn-edit-info{background:var(--purple-dark);color:#fff}
+.btn-del{background:var(--red-light);color:var(--red-dark)}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal-overlay.open{display:flex}
+.modal-box{background:#fff;border-radius:24px;padding:28px 24px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.18);max-height:90vh;overflow-y:auto}
+.modal-title{font-size:18px;font-weight:900;margin-bottom:16px}
+.modal-close{float:right;background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted)}
+.modal-section{margin-bottom:16px}
+.modal-divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+
+/* ── ANIMATIONS ── */
+@keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(3px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+.shake{animation:shake .5s both}
+
+/* ── EMPTY ── */
+.empty-state{text-align:center;padding:32px 16px;color:var(--muted)}
+.empty-emoji{font-size:48px}
+.empty-text{font-size:14px;font-weight:700;margin-top:8px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:#1e293b;color:#fff;padding:12px 24px;border-radius:20px;font-size:14px;font-weight:800;transition:transform .3s cubic-bezier(.34,1.56,.64,1);z-index:300;white-space:nowrap;max-width:90vw;text-align:center}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── LIGHTBOX ── */
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:500;cursor:pointer}
+#lightbox.open{display:flex}
+#lightbox img{max-width:92vw;max-height:88vh;border-radius:12px}
+
+/* ── FIREBASE STATUS ── */
+.fb-status{font-size:11px;padding:4px 10px;border-radius:8px;font-weight:800}
+.fb-ok{background:var(--green-light);color:var(--green-dark)}
+.fb-err{background:var(--red-light);color:var(--red-dark)}
+.fb-wait{background:var(--yellow-light);color:#92400e}
+
+@media(max-width:480px){.balance-time{font-size:44px}.btn-big{padding:11px 18px;font-size:14px}}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <div class="spin"></div>
+  <p id="loader-msg">데이터베이스 연결 중…</p>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-emoji">🎮</div>
+    <div class="login-title">게임 타임 뱅크</div>
+    <div class="login-sub">열심히 하면 게임 시간이 쌓여요!</div>
+    <div class="field-wrap">
+      <label>아이디</label>
+      <input type="text" id="login-id" placeholder="ID 입력" autocomplete="username">
+    </div>
+    <div class="field-wrap">
+      <label>비밀번호</label>
+      <input type="password" id="login-pw" placeholder="PW 입력" autocomplete="current-password">
+    </div>
+    <button class="btn-login" onclick="doLogin()">로그인 🚀</button>
+    <div class="login-err" id="login-err"></div>
+    <div style="margin-top:16px;"><span id="db-status" class="fb-status fb-wait">DB 연결 확인 중…</span></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo">🎮 <span>TIME</span>BANK</div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="user-badge">
+        <span id="topbar-name"></span>
+        <span id="topbar-role" class="role-badge"></span>
+      </div>
+      <button class="btn-sm btn-logout" onclick="doLogout()">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs-bar"></div>
+
+  <!-- ───────── CHILD PAGE ───────── -->
+  <div class="page" id="page-child-main">
+    <div class="balance-card" id="balance-card">
+      <div class="balance-label" id="balance-label">🎯 남은 게임 시간</div>
+      <div class="balance-time" id="balance-display">00:00:00</div>
+      <div class="balance-name" id="balance-name-label"></div>
+    </div>
+    <div class="debt-warning" id="debt-warning">⚠️ 게임 시간이 마이너스예요! 먼저 보상 시간을 채워야 해요 😥</div>
+
+    <div class="section-card">
+      <div class="section-title"><span>🕹️</span> 게임 시간 쓰기</div>
+      <div id="cd-inputs-wrap" class="cd-inputs">
+        <div><input type="number" class="cd-input-num" id="cd-h" value="0" min="0"><div class="cd-label">시간</div></div>
+        <div class="cd-sep">:</div>
+        <div><input type="number" class="cd-input-num" id="cd-m" value="10" min="0" max="59"><div class="cd-label">분</div></div>
+        <div class="cd-sep">:</div>
+        <div><input type="number" class="cd-input-num" id="cd-s" value="0" min="0" max="59"><div class="cd-label">초</div></div>
+      </div>
+      <div id="cd-running-display" class="cd-time-display hidden">00:10:00</div>
+      <div class="btn-row">
+        <button class="btn-big btn-red" id="btn-cd-start" onclick="startCountdown()">▶ 시작</button>
+        <button class="btn-big btn-yellow hidden" id="btn-cd-pause" onclick="pauseCountdown()">⏸ 일시정지</button>
+        <button class="btn-big btn-ghost hidden" id="btn-cd-reset" onclick="resetCountdown()">✕ 취소</button>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-title"><span>⭐</span> 보상 시간 요청하기</div>
+      <div class="request-form">
+        <div>
+          <div class="form-label">추가 요청 시간</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="number" class="form-input" id="req-h" value="0" min="0" style="width:70px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;"> <span style="font-weight:800;">시</span>
+            <input type="number" class="form-input" id="req-m" value="30" min="0" max="59" style="width:70px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;"> <span style="font-weight:800;">분</span>
+          </div>
+        </div>
+        <div>
+          <div class="form-label">메모 (무엇을 했나요?)</div>
+          <input type="text" class="form-input" id="req-note" placeholder="예: 수학 문제집 30페이지 완료">
+        </div>
+        <div>
+          <div class="form-label">증거 사진 첨부 (선택)</div>
+          <div class="file-drop" onclick="document.getElementById('req-file').click()">
+            <div class="file-drop-text" id="file-drop-text">📸 사진을 클릭해서 올리세요</div>
+            <img id="file-preview" class="file-preview">
+          </div>
+          <input type="file" id="req-file" accept="image/*" style="display:none" onchange="handleFileSelect(this)">
+        </div>
+        <button class="btn-big btn-green" onclick="submitRequest()" style="width:100%">✉️ 엄마/아빠에게 요청 보내기</button>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-title"><span>📋</span> 내 기록</div>
+      <div id="child-history-list"><div class="empty-state"><div class="empty-emoji">📭</div><div class="empty-text">아직 기록이 없어요</div></div></div>
+    </div>
+  </div>
+
+  <!-- ───────── PARENT PAGE ───────── -->
+  <div class="page" id="page-parent-main">
+
+    <!-- 자녀 계정 관리 -->
+    <div class="section-card">
+      <div class="section-title"><span>👨‍👩‍👧</span> 자녀 계정 관리</div>
+      <div id="children-mgmt-list"></div>
+      <hr class="modal-divider">
+      <div style="font-size:13px;font-weight:800;color:var(--muted);margin-bottom:10px;">➕ 새 자녀 계정 추가</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+        <input type="text" class="form-input" id="new-child-name" placeholder="이름" style="flex:1;min-width:80px;">
+        <input type="text" class="form-input" id="new-child-id" placeholder="아이디" style="flex:1;min-width:80px;">
+        <input type="password" class="form-input" id="new-child-pw" placeholder="비밀번호" style="flex:1;min-width:80px;">
+      </div>
+      <button class="btn-big btn-purple" onclick="addChild()" style="width:100%">계정 만들기</button>
+    </div>
+
+    <!-- 승인 대기 -->
+    <div class="section-card">
+      <div class="section-title"><span>🔔</span> 승인 대기 요청 <span id="pending-badge" style="background:var(--red-dark);color:#fff;border-radius:999px;font-size:11px;padding:1px 8px;margin-left:4px;display:none"></span></div>
+      <div id="pending-list"><div class="empty-state"><div class="empty-emoji">✅</div><div class="empty-text">대기 중인 요청이 없어요</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDIT TIME -->
+<div class="modal-overlay" id="modal-time">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-time')">×</button>
+    <div class="modal-title">⏱ 게임 시간 수정</div>
+    <div style="font-size:14px;font-weight:700;color:var(--muted);margin-bottom:12px;" id="modal-time-name"></div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:flex-end;">
+      <div><div class="form-label">시간</div><input type="number" class="form-input" id="edit-h" value="0" min="0" style="width:80px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:800;"></div>
+      <div><div class="form-label">분</div><input type="number" class="form-input" id="edit-m" value="0" min="0" max="59" style="width:80px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:800;"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-big btn-green" onclick="applyEditTime(true)">+ 추가</button>
+      <button class="btn-big btn-red" onclick="applyEditTime(false)">- 차감</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EDIT CHILD INFO -->
+<div class="modal-overlay" id="modal-child-info">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-child-info')">×</button>
+    <div class="modal-title">✏️ 자녀 계정 수정</div>
+    <div class="modal-section">
+      <div class="form-label">이름</div>
+      <input type="text" class="form-input" id="edit-child-name" placeholder="이름">
+    </div>
+    <div class="modal-section">
+      <div class="form-label">새 비밀번호 <span style="color:var(--muted);font-size:11px;">(변경 안 하면 비워두세요)</span></div>
+      <input type="password" class="form-input" id="edit-child-pw" placeholder="새 비밀번호">
+    </div>
+    <div style="margin-top:4px;padding:10px 12px;background:var(--red-light);border-radius:10px;font-size:12px;font-weight:700;color:var(--red-dark);">
+      ⚠️ 아이디는 변경 불가능해요 (현재: <span id="edit-child-id-display"></span>)
+    </div>
+    <hr class="modal-divider">
+    <div class="btn-row" style="justify-content:space-between;">
+      <button class="btn-big btn-green" onclick="applyChildInfo()" style="flex:1;">저장</button>
+      <button class="btn-big btn-red" onclick="deleteChild()" style="flex:1;">🗑 계정 삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="document.getElementById('lightbox').classList.remove('open')">
+  <img id="lightbox-img" src="">
+</div>
+<div id="toast"></div>
+<audio id="alarm-audio" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+<script type="module">
+// ════════════════════════════════════════════════
+// FIREBASE v12 ESM IMPORT
+// ════════════════════════════════════════════════
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+import { getDatabase, ref, set, remove, onValue } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC4jRVVD9xipy8j6DdMKTqO_2bPEumq07Y",
+  authDomain: "timer-bank.firebaseapp.com",
+  databaseURL: "https://timer-bank-default-rtdb.firebaseio.com",
+  projectId: "timer-bank",
+  storageBucket: "timer-bank.firebasestorage.app",
+  messagingSenderId: "1013270669659",
+  appId: "1:1013270669659:web:2b4184dc33c3a523cdd27e",
+  measurementId: "G-9LYQCZ1GTP"
+};
+
+// ════════════════════════════════════════════════
+// FIREBASE INIT + FALLBACK
+// ════════════════════════════════════════════════
+let db = null;
+let useLocalFallback = false;
+const DB_ROOT = 'gameTimeBank/';
+const PARENT_PW = 'pjykcm';
+
+// in-memory store (mirrors DB structure)
+let store = { children: {}, pendingRequests: {} };
+
+function fbRef(path) { return ref(db, DB_ROOT + path); }
+
+function initApp() {
+  const statusEl = document.getElementById('db-status');
+
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getDatabase(app);
+
+    // 연결 상태 감지
+    onValue(ref(db, '.info/connected'), snap => {
+      if (snap.val() === true) {
+        statusEl.textContent = '✅ DB 연결됨';
+        statusEl.className = 'fb-status fb-ok';
+      } else {
+        statusEl.textContent = '⏳ DB 연결 중…';
+        statusEl.className = 'fb-status fb-wait';
+      }
+    });
+
+    // 데이터 실시간 구독 — 첫 수신 시 로그인 화면 표시
+    onValue(ref(db, DB_ROOT), snap => {
+      const val = snap.val() || {};
+      store.children = val.children || {};
+      store.pendingRequests = val.pendingRequests || {};
+      if (currentUser) reRender();
+      if (document.getElementById('loader').style.display !== 'none') {
+        showLoginScreen();
+      }
+    }, err => {
+      console.error('DB read error:', err);
+      useLocalFallback = true;
+      statusEl.textContent = '⚠️ DB 오류 — 로컬 전용';
+      statusEl.className = 'fb-status fb-err';
+      loadLocalStore();
+      showLoginScreen();
+    });
+
+    // 5초 안에 응답 없으면 로컬 모드
+    setTimeout(() => {
+      if (document.getElementById('loader').style.display !== 'none') {
+        useLocalFallback = true;
+        statusEl.textContent = '⚠️ 연결 시간 초과 — 로컬 전용';
+        statusEl.className = 'fb-status fb-err';
+        loadLocalStore();
+        showLoginScreen();
+      }
+    }, 5000);
+
+  } catch(e) {
+    console.error('Firebase init error:', e);
+    useLocalFallback = true;
+    statusEl.textContent = '⚠️ DB 오류 — 로컬 전용';
+    statusEl.className = 'fb-status fb-err';
+    loadLocalStore();
+    showLoginScreen();
+  }
+}
+
+function showLoginScreen() {
+  document.getElementById('loader').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ── LOCAL FALLBACK ──
+const LS_KEY = 'gtb_local';
+function loadLocalStore() {
+  const raw = localStorage.getItem(LS_KEY);
+  if (raw) {
+    const d = JSON.parse(raw);
+    store.children = d.children || {};
+    store.pendingRequests = d.pendingRequests || {};
+  }
+}
+function saveLocal() {
+  localStorage.setItem(LS_KEY, JSON.stringify(store));
+}
+
+// ── WRITE HELPERS ──
+async function writeChild(childId, data) {
+  if (useLocalFallback) {
+    store.children[childId] = data;
+    saveLocal();
+  } else {
+    await set(fbRef('children/' + childId), data);
+  }
+}
+async function removeChild(childId) {
+  if (useLocalFallback) {
+    delete store.children[childId];
+    saveLocal();
+  } else {
+    await remove(fbRef('children/' + childId));
+  }
+}
+async function writeChildField(childId, field, value) {
+  if (useLocalFallback) {
+    if (!store.children[childId]) return;
+    store.children[childId][field] = value;
+    saveLocal();
+  } else {
+    await set(fbRef('children/' + childId + '/' + field), value);
+  }
+}
+async function writePendingRequest(req) {
+  if (useLocalFallback) {
+    store.pendingRequests[req.id] = req;
+    saveLocal();
+  } else {
+    await set(fbRef('pendingRequests/' + req.id), req);
+  }
+}
+async function removePendingRequest(reqId) {
+  if (useLocalFallback) {
+    delete store.pendingRequests[reqId];
+    saveLocal();
+  } else {
+    await remove(fbRef('pendingRequests/' + reqId));
+  }
+}
+
+// ════════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════════
+let currentUser = null;
+let cdInterval=null, cdTimeLeftMs=0, cdInitialMs=0, cdRunning=false;
+let editTargetId=null, reqImgDataUrl=null;
+
+function doLogin() {
+  const id = document.getElementById('login-id').value.trim();
+  const pw = document.getElementById('login-pw').value.trim();
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+
+  if (id === 'parent' && pw === PARENT_PW) {
+    currentUser = { id:'parent', role:'parent', name:'부모님' };
+    enterApp(); return;
+  }
+  const child = store.children[id];
+  if (child && child.pw === pw) {
+    currentUser = { id, role:'child', name:child.name };
+    enterApp(); return;
+  }
+  errEl.textContent = '❌ 아이디 또는 비밀번호가 틀렸어요.';
+}
+
+function doLogout() {
+  if (cdInterval) { clearInterval(cdInterval); cdInterval=null; }
+  cdRunning=false; currentUser=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-id').value='';
+  document.getElementById('login-pw').value='';
+  document.getElementById('login-err').textContent='';
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+}
+
+function enterApp() {
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('topbar-name').textContent=currentUser.name;
+  const roleEl=document.getElementById('topbar-role');
+  if(currentUser.role==='parent'){roleEl.textContent='부모';roleEl.className='role-badge role-parent';}
+  else{roleEl.textContent='자녀';roleEl.className='role-badge role-child';}
+  buildTabs();
+  if(currentUser.role==='child') renderChildMain();
+  else renderParentMain();
+}
+
+function reRender() {
+  if(!currentUser) return;
+  if(currentUser.role==='child'){
+    const child=store.children[currentUser.id];
+    if(child) updateBalanceDisplay(child.balanceMs||0);
+    renderChildHistory();
+  } else {
+    renderChildrenMgmt();
+    renderPendingList();
+  }
+}
+
+function buildTabs() {
+  const bar=document.getElementById('tabs-bar');
+  bar.innerHTML='';
+  if(currentUser.role==='child'){
+    bar.innerHTML=`<button class="tab-btn active" onclick="showPage('child-main',this)">🎮 내 타임뱅크</button>`;
+  } else {
+    bar.innerHTML=`<button class="tab-btn active" onclick="showPage('parent-main',this)">👨‍👩‍👧 관리</button>`;
+  }
+}
+function showPage(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+}
+
+// ════════════════════════════════════════════════
+// CHILD VIEW
+// ════════════════════════════════════════════════
+function renderChildMain() {
+  document.getElementById('page-child-main').classList.add('active');
+  const child=store.children[currentUser.id];
+  document.getElementById('balance-name-label').textContent=currentUser.name+'의 게임 시간';
+  updateBalanceDisplay(child ? child.balanceMs||0 : 0);
+  renderChildHistory();
+  resetCountdown();
+}
+
+function updateBalanceDisplay(ms) {
+  document.getElementById('balance-display').textContent=msToHMS(ms);
+  const card=document.getElementById('balance-card');
+  const warn=document.getElementById('debt-warning');
+  const lbl=document.getElementById('balance-label');
+  if(ms<0){card.classList.add('is-negative');warn.classList.add('show');lbl.textContent='🚨 게임 빚 (마이너스 시간)';}
+  else{card.classList.remove('is-negative');warn.classList.remove('show');lbl.textContent='🎯 남은 게임 시간';}
+}
+
+function renderChildHistory() {
+  const child=store.children[currentUser.id];
+  const list=document.getElementById('child-history-list');
+  const history=((child&&child.history)?Object.values(child.history):[]).sort((a,b)=>b.ts_raw-a.ts_raw);
+  if(!history.length){list.innerHTML='<div class="empty-state"><div class="empty-emoji">📭</div><div class="empty-text">아직 기록이 없어요</div></div>';return;}
+  list.innerHTML=history.map(h=>`
+    <div class="history-item">
+      <div><div class="history-action">${escHtml(h.action)}</div><div class="history-meta">${h.ts}</div></div>
+      <div class="${h.ms>=0?'history-change-plus':'history-change-minus'}">${h.ms>=0?'+':''}${msToHMS(Math.abs(h.ms))}</div>
+    </div>`).join('');
+}
+
+// ── COUNTDOWN ──
+function startCountdown() {
+  if(!cdRunning){
+    const h=parseInt(document.getElementById('cd-h').value)||0;
+    const m=parseInt(document.getElementById('cd-m').value)||0;
+    const s=parseInt(document.getElementById('cd-s').value)||0;
+    const ms=(h*3600+m*60+s)*1000;
+    if(ms<=0){showToast('⏱ 시간을 입력해주세요!');return;}
+    const child=store.children[currentUser.id];
+    const balance=child?child.balanceMs||0:0;
+    if(balance<=0) showToast('⚠️ 시간이 없어요! 마이너스로 차감돼요');
+    cdTimeLeftMs=ms; cdInitialMs=ms;
+  }
+  cdRunning=true;
+  document.getElementById('cd-inputs-wrap').classList.add('hidden');
+  document.getElementById('cd-running-display').classList.remove('hidden');
+  document.getElementById('btn-cd-start').classList.add('hidden');
+  document.getElementById('btn-cd-pause').classList.remove('hidden');
+  document.getElementById('btn-cd-reset').classList.remove('hidden');
+
+  cdInterval=setInterval(async()=>{
+    cdTimeLeftMs-=1000;
+    const child=store.children[currentUser.id];
+    const newBal=(child?child.balanceMs||0:0)-1000;
+    if(child){
+      child.balanceMs=newBal;
+      // throttle writes to every 10s
+      if(cdTimeLeftMs%10000===0) await writeChildField(currentUser.id,'balanceMs',newBal);
+    }
+    updateBalanceDisplay(newBal);
+    document.getElementById('cd-running-display').textContent=msToHMS(Math.max(0,cdTimeLeftMs));
+    if(cdTimeLeftMs<=0) finishCountdown();
+  },1000);
+}
+
+function pauseCountdown(){
+  clearInterval(cdInterval);cdInterval=null;cdRunning=false;
+  document.getElementById('btn-cd-start').classList.remove('hidden');
+  document.getElementById('btn-cd-pause').classList.add('hidden');
+  // save current balance
+  const child=store.children[currentUser.id];
+  if(child) writeChildField(currentUser.id,'balanceMs',child.balanceMs);
+}
+function resetCountdown(){
+  clearInterval(cdInterval);cdInterval=null;cdRunning=false;cdTimeLeftMs=0;cdInitialMs=0;
+  document.getElementById('cd-inputs-wrap').classList.remove('hidden');
+  document.getElementById('cd-running-display').classList.add('hidden');
+  document.getElementById('cd-running-display').textContent='00:00:00';
+  document.getElementById('btn-cd-start').classList.remove('hidden');
+  document.getElementById('btn-cd-pause').classList.add('hidden');
+  document.getElementById('btn-cd-reset').classList.add('hidden');
+}
+async function finishCountdown(){
+  clearInterval(cdInterval);cdInterval=null;cdRunning=false;
+  const child=store.children[currentUser.id];
+  await addChildHistory(currentUser.id,'🎮 게임 시간 사용',-cdInitialMs);
+  if(child) await writeChildField(currentUser.id,'balanceMs',child.balanceMs);
+  try{document.getElementById('alarm-audio').play();}catch(e){}
+  resetCountdown();
+  updateBalanceDisplay(child?child.balanceMs||0:0);
+  renderChildHistory();
+  showToast('⏰ 게임 시간 종료! 수고했어요 🎉');
+}
+
+// ── REWARD REQUEST ──
+function handleFileSelect(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    reqImgDataUrl=e.target.result;
+    const preview=document.getElementById('file-preview');
+    preview.src=reqImgDataUrl;preview.style.display='block';
+    document.getElementById('file-drop-text').textContent='✅ 사진이 첨부되었어요';
+  };
+  reader.readAsDataURL(file);
+}
+async function submitRequest(){
+  const h=parseInt(document.getElementById('req-h').value)||0;
+  const m=parseInt(document.getElementById('req-m').value)||0;
+  const ms=(h*3600+m*60)*1000;
+  const note=document.getElementById('req-note').value.trim();
+  if(ms<=0){showToast('⏱ 요청할 시간을 입력하세요!');return;}
+  const req={id:Date.now().toString(),childId:currentUser.id,childName:currentUser.name,ms,note:note||'(메모 없음)',imgDataUrl:reqImgDataUrl||null,ts:nowStr(),ts_raw:Date.now()};
+  await writePendingRequest(req);
+  document.getElementById('req-h').value='0';
+  document.getElementById('req-m').value='30';
+  document.getElementById('req-note').value='';
+  reqImgDataUrl=null;
+  document.getElementById('file-preview').style.display='none';
+  document.getElementById('file-preview').src='';
+  document.getElementById('file-drop-text').textContent='📸 사진을 클릭해서 올리세요';
+  document.getElementById('req-file').value='';
+  showToast('✅ 요청을 보냈어요! 부모님의 승인을 기다려요 🙏');
+}
+
+// ════════════════════════════════════════════════
+// PARENT VIEW
+// ════════════════════════════════════════════════
+function renderParentMain(){
+  document.getElementById('page-parent-main').classList.add('active');
+  renderChildrenMgmt();
+  renderPendingList();
+}
+
+function renderChildrenMgmt(){
+  const wrap=document.getElementById('children-mgmt-list');
+  const ids=Object.keys(store.children);
+  if(!ids.length){wrap.innerHTML='<div class="empty-state"><div class="empty-emoji">👶</div><div class="empty-text">아직 자녀 계정이 없어요</div></div>';return;}
+  wrap.innerHTML=ids.map(id=>{
+    const c=store.children[id];
+    const bal=c.balanceMs||0;
+    const tc=bal<0?'color:var(--red-dark)':'color:var(--sky-dark)';
+    return `<div class="child-mgmt-item">
+      <div class="child-mgmt-header">
+        <div>
+          <div class="child-mgmt-name">${escHtml(c.name)}</div>
+          <div class="child-mgmt-id">ID: ${escHtml(id)}</div>
+        </div>
+        <div class="child-mgmt-time" style="${tc}">${msToHMS(bal)}</div>
+      </div>
+      <div class="child-mgmt-actions">
+        <button class="btn-action btn-time" onclick="openModalTime('${escHtml(id)}')">⏱ 시간 수정</button>
+        <button class="btn-action btn-edit-info" onclick="openModalChildInfo('${escHtml(id)}')">✏️ 계정 수정</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderPendingList(){
+  const wrap=document.getElementById('pending-list');
+  const badge=document.getElementById('pending-badge');
+  const list=Object.values(store.pendingRequests||{}).sort((a,b)=>a.ts_raw-b.ts_raw);
+  if(!list.length){
+    wrap.innerHTML='<div class="empty-state"><div class="empty-emoji">✅</div><div class="empty-text">대기 중인 요청이 없어요</div></div>';
+    badge.style.display='none'; return;
+  }
+  badge.textContent=list.length; badge.style.display='inline';
+  wrap.innerHTML=list.map(req=>`
+    <div class="pending-item">
+      <div class="pending-item-header">
+        <div>
+          <div class="pending-name">👦 ${escHtml(req.childName)}</div>
+          <div class="pending-note">📝 ${escHtml(req.note)}</div>
+          <div class="pending-note">🕐 ${req.ts}</div>
+        </div>
+        <div class="pending-time">+${msToHMStr(req.ms)}</div>
+      </div>
+      ${req.imgDataUrl?`<img class="pending-img" src="${req.imgDataUrl}" onclick="openLightbox('${req.imgDataUrl.replace(/'/g,"\\'")}')" title="클릭하면 크게 보여요">`:''}
+      <div class="pending-actions">
+        <button class="btn-approve" onclick="approveRequest('${req.id}')">✅ 승인</button>
+        <button class="btn-reject" onclick="rejectRequest('${req.id}')">❌ 거절</button>
+      </div>
+    </div>`).join('');
+}
+
+async function approveRequest(reqId){
+  const req=store.pendingRequests[reqId];if(!req)return;
+  const child=store.children[req.childId];if(!child)return;
+  child.balanceMs=(child.balanceMs||0)+req.ms;
+  await addChildHistory(req.childId,`⭐ 보상 승인: ${req.note}`,req.ms);
+  await writeChildField(req.childId,'balanceMs',child.balanceMs);
+  await removePendingRequest(reqId);
+  if(useLocalFallback){renderChildrenMgmt();renderPendingList();}
+  showToast(`✅ ${req.childName}의 요청 승인! +${msToHMStr(req.ms)}`);
+}
+async function rejectRequest(reqId){
+  const req=store.pendingRequests[reqId];if(!req)return;
+  const name=req.childName;
+  await removePendingRequest(reqId);
+  if(useLocalFallback){renderPendingList();}
+  showToast(`🗑 ${name}의 요청을 거절했어요.`);
+}
+
+async function addChild(){
+  const name=document.getElementById('new-child-name').value.trim();
+  const id=document.getElementById('new-child-id').value.trim();
+  const pw=document.getElementById('new-child-pw').value.trim();
+  if(!id||!pw||!name){showToast('❗ 이름, 아이디, 비밀번호 모두 입력해주세요!');return;}
+  if(id==='parent'){showToast('❗ "parent"는 사용할 수 없어요.');return;}
+  if(store.children[id]){showToast('❗ 이미 있는 아이디예요.');return;}
+  const newChild={name,pw,balanceMs:0,history:{}};
+  store.children[id]=newChild;
+  await writeChild(id,newChild);
+  document.getElementById('new-child-name').value='';
+  document.getElementById('new-child-id').value='';
+  document.getElementById('new-child-pw').value='';
+  if(useLocalFallback) renderChildrenMgmt();
+  showToast(`🎉 ${name} 계정이 만들어졌어요!`);
+}
+
+// ── MODAL: TIME EDIT ──
+function openModalTime(childId){
+  editTargetId=childId;
+  const c=store.children[childId];
+  document.getElementById('modal-time-name').textContent=c.name+' 현재: '+msToHMS(c.balanceMs||0);
+  document.getElementById('edit-h').value='0';
+  document.getElementById('edit-m').value='0';
+  document.getElementById('modal-time').classList.add('open');
+}
+async function applyEditTime(isAdd){
+  const h=parseInt(document.getElementById('edit-h').value)||0;
+  const m=parseInt(document.getElementById('edit-m').value)||0;
+  const ms=(h*3600+m*60)*1000;
+  if(ms<=0){showToast('⏱ 시간을 입력해주세요!');return;}
+  const child=store.children[editTargetId];
+  child.balanceMs=(child.balanceMs||0)+(isAdd?ms:-ms);
+  await addChildHistory(editTargetId,`${isAdd?'➕':'➖'} 부모님 수동 조정`,isAdd?ms:-ms);
+  await writeChildField(editTargetId,'balanceMs',child.balanceMs);
+  if(useLocalFallback) renderChildrenMgmt();
+  closeModal('modal-time');
+  showToast(`${child.name} ${isAdd?'+':'−'}${msToHMStr(ms)} 완료!`);
+}
+
+// ── MODAL: CHILD INFO EDIT ──
+function openModalChildInfo(childId){
+  editTargetId=childId;
+  const c=store.children[childId];
+  document.getElementById('edit-child-name').value=c.name;
+  document.getElementById('edit-child-pw').value='';
+  document.getElementById('edit-child-id-display').textContent=childId;
+  document.getElementById('modal-child-info').classList.add('open');
+}
+async function applyChildInfo(){
+  const name=document.getElementById('edit-child-name').value.trim();
+  const pw=document.getElementById('edit-child-pw').value.trim();
+  if(!name){showToast('❗ 이름을 입력해주세요.');return;}
+  const child=store.children[editTargetId];
+  child.name=name;
+  if(pw) child.pw=pw;
+  await writeChildField(editTargetId,'name',name);
+  if(pw) await writeChildField(editTargetId,'pw',pw);
+  if(useLocalFallback) renderChildrenMgmt();
+  closeModal('modal-child-info');
+  showToast(`✅ ${name} 계정 정보를 수정했어요.`);
+}
+async function deleteChild(){
+  const c=store.children[editTargetId];
+  if(!confirm(`정말로 ${c.name} 계정을 삭제할까요?\n게임 시간 기록이 모두 사라져요.`)) return;
+  await removeChild(editTargetId);
+  if(useLocalFallback) renderChildrenMgmt();
+  closeModal('modal-child-info');
+  showToast(`🗑 ${c.name} 계정을 삭제했어요.`);
+}
+
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+// ════════════════════════════════════════════════
+// HISTORY
+// ════════════════════════════════════════════════
+async function addChildHistory(childId, action, ms){
+  if(!store.children[childId]) return;
+  const entry={ action, ms, ts:nowStr(), ts_raw:Date.now() };
+  const key=Date.now().toString();
+  if(!store.children[childId].history) store.children[childId].history={};
+  store.children[childId].history[key]=entry;
+  // Trim to 100 entries
+  const keys=Object.keys(store.children[childId].history).sort();
+  if(keys.length>100) delete store.children[childId].history[keys[0]];
+  if(useLocalFallback){ saveLocal(); }
+  else { await set(fbRef('children/'+childId+'/history/'+key), entry); }
+}
+
+// ════════════════════════════════════════════════
+// LIGHTBOX
+// ════════════════════════════════════════════════
+function openLightbox(src){
+  document.getElementById('lightbox-img').src=src;
+  document.getElementById('lightbox').classList.add('open');
+}
+
+// ════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════
+function msToHMS(ms){
+  const neg=ms<0; const abs=Math.abs(ms);
+  const h=Math.floor(abs/3600000);
+  const m=Math.floor((abs%3600000)/60000);
+  const s=Math.floor((abs%60000)/1000);
+  return `${neg?'-':''}${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+function msToHMStr(ms){
+  const h=Math.floor(ms/3600000);const m=Math.floor((ms%3600000)/60000);
+  return h>0?`${h}시간 ${m}분`:`${m}분`;
+}
+function pad(n){return String(n).padStart(2,'0')}
+function nowStr(){const d=new Date();return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+let toastTimer=null;
+function showToast(msg){
+  const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2800);
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&document.getElementById('login-screen').style.display!=='none') doLogin();
+});
+
+// ── module 스코프 → 전역 노출 (onclick 핸들러용) ──
+window.doLogin=doLogin; window.doLogout=doLogout;
+window.showPage=showPage;
+window.startCountdown=startCountdown; window.pauseCountdown=pauseCountdown; window.resetCountdown=resetCountdown;
+window.handleFileSelect=handleFileSelect; window.submitRequest=submitRequest;
+window.approveRequest=approveRequest; window.rejectRequest=rejectRequest;
+window.addChild=addChild;
+window.openModalTime=openModalTime; window.applyEditTime=applyEditTime;
+window.openModalChildInfo=openModalChildInfo; window.applyChildInfo=applyChildInfo; window.deleteChild=deleteChild;
+window.closeModal=closeModal;
+window.openLightbox=openLightbox;
+
+// BOOT
+initApp();
+</script>
+</body>
+</html>
